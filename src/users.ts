@@ -20,3 +20,7 @@ export async function addUser(username: string, password: string, vulnerable: bo
   const stored = vulnerable ? password : await bcrypt.hash(password, 10);
   await pool.query('INSERT INTO users (username, password) VALUES ($1, $2);', [username, stored]);
 }
+
+export async function deleteAllUsers(): Promise<void> {
+  await pool.query('DELETE FROM users;');
+}

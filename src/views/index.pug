@@ -1,0 +1,95 @@
+doctype html
+html
+	head
+		meta(charset="utf-8")
+		title Lab2 - sigurnosne ranjivosti
+	body
+		h1 Lab2 - sigurnosne ranjivosti
+
+		hr
+		h2 Cross-site scripting (Stored XSS)
+		p
+			b Upute:
+			|  Komentari se u bazu uvijek spremaju točno onako kako su upisani, a prekidač određuje kako se prikazuju.
+			|  Promjena prekidača odmah ponovno učitava stranicu u novom stanju.
+		ol
+			li
+				| Uključite ranjivost i spremite komentar
+				|
+				code= '<script>alert(document.cookie)</script>'
+				| .
+			li Iskočit će alert s vrijednošću cookieja sessionId. Skripta je spremljena u bazi, pa se izvršava pri svakom učitavanju stranice dok je ranjivost uključena.
+			li
+				| Isključite ranjivost. Isti komentar sada se prikazuje kao običan tekst i skripta se ne izvršava.
+				| Cookie sessionId dobiva zastavicu HttpOnly, pa ga
+				|
+				code document.cookie
+				|  u konzoli preglednika (F12) više ne vidi, iako postoji (F12 --- Storage --- Cookies).
+			li Ponovnim uključivanjem ranjivosti spremljena skripta se ponovno izvršava.
+		p
+			i Napomena: sessionId je lažni (demo) cookie. Aplikacija nema prijavu, pa server kreira i postavlja novi cookie pri svakom učitavanju stranice samo da bi se demonstriralo što napadač može ukrasti.
+
+		form(action="/comments", method="post")
+			label
+				input(type="checkbox", name="xss", checked=xssEnabled, onchange="location.href = '/?xss=' + (this.checked ? 'on' : 'off')")
+				|  Ranjivost uključena
+			p
+				label Komentar:
+					|
+					input(type="text", name="content", size="60", required)
+			input(type="submit", value="Spremi komentar")
+
+		h3 Komentari
+		if comments.length
+			ul
+				each c in comments
+					if xssEnabled
+						li!= c.content
+					else
+						li= c.content
+		else
+			p Nema komentara.
+		form(action="/comments/clear", method="post")
+			input(type="submit", value="Obriši sve komentare")
+
+		hr
+		h2 Nesigurna pohrana osjetljivih podataka (Sensitive Data Exposure)
+		p
+			b Upute:
+			|  Prekidač djeluje u trenutku spremanja korisnika u bazu. Tablica ispod prikazuje sadržaj tablice users točno onako kako je zapisan u bazi.
+		ol
+			li Uključite ranjivost i registrirajte korisnika (npr. ana / tajna123). Lozinka je u bazi spremljena kao čisti tekst, pa ju vidi svatko tko dođe do baze (curenje backupa, SQL injection, administrator).
+			li Isključite ranjivost i registrirajte istog korisnika s istom lozinkom. U bazu se sprema bcrypt hash ($2b$10$...) iz kojeg se lozinka ne može vratiti.
+			li Ponovite 2. korak: ista lozinka daje drugačiji hash, jer bcrypt svakom hashu dodaje nasumičan salt.
+		p
+			i Napomena: već spremljeni zapisi se ne mijenjaju promjenom prekidača. Gumb „Obriši sve korisnike“ služi za lakše čišćenje baze, kako bi se korisnik mogao fokusirati samo na elemente koje je sam unio.
+
+		form(action="/users", method="post")
+			label
+				input(type="checkbox", name="sde", checked=sdeEnabled)
+				|  Ranjivost uključena
+			p
+				label Korisničko ime:
+					|
+					input(type="text", name="username", required)
+				|
+				label Lozinka:
+					|
+					input(type="password", name="password", required)
+			input(type="submit", value="Pohrani u bazu")
+
+		h3 Sadržaj tablice users
+		table(border="1")
+			tr
+				th id
+				th username
+				th password
+				th created_at
+			each u in users
+				tr
+					td= u.id
+					td= u.username
+					td= u.password
+					td= u.created_at.toISOString()
+		form(action="/users/clear", method="post")
+			input(type="submit", value="Obriši sve korisnike")

@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { getAllComments, addComment, deleteAllComments } from './comments.ts';
-import { getAllUsers, addUser } from './users.ts';
+import { getAllUsers, addUser, deleteAllUsers } from './users.ts';
 
 const app = express();
 app.set("views", path.join(import.meta.dirname, "views"));
@@ -22,6 +22,13 @@ app.get('/', async function (req, res) {
   const xssEnabled = req.query.xss === 'on';
   const sdeEnabled = req.query.sde === 'on';
   const [comments, users] = await Promise.all([getAllComments(), getAllUsers()]);
+  
+  // demo "sesijski" cookie: kad je ranjivost isključena, HttpOnly ga skriva od JavaScripta (document.cookie)
+  // ne radimo autentifikaciju pa se šalje randomUUID koji samo simulira cookie (da bi se prikazao xss)
+  // tu radimo novi cookie jer ovisno jel httpOnly uključen/isključen treba postaviti httpOnly zastavicu, a najlakše je samo novi cookie napravit
+  // u pravoj situaciji: httpOnly bi uvijek bio postavljen na true te bi se cookie dodijeljivao kod prve autentifikacije/prijave (i nakon expire-ija)
+  res.cookie('sessionId', randomUUID(), { httpOnly: !xssEnabled });
+  
   res.render('index', { xssEnabled, sdeEnabled, comments, users });
 });
 
@@ -34,11 +41,7 @@ app.post('/comments', async function (req, res) {
     return;
   }
   await addComment(content);
-  // demo "sesijski" cookie: kad je ranjivost isključena, HttpOnly ga skriva od JavaScripta (document.cookie)
-  // ne radimo autentifikaciju pa se šalje randomUUID koji samo simulira cookie (da bi se prikazao ispis)
-  // tu radimo novi cookie jer ovisno jel httpOnly uključen/isključen treba postaviti httpOnly zastavicu, a najlakše je samo novi cookie napravit
-  // u pravoj situaciji: httpOnly bi uvijek bio postavljen na true te bi se cookie dodojeljivao kod prve autentifikacije/prijave (i nakon expire-ija)
-  res.cookie('sessionId', randomUUID(), { httpOnly: !xssEnabled });
+  
   // redirect se radi kako refresh forme, nebi radio duplikate u bazi, nego samo napravio novi get zahtjev na specificirani url
   res.redirect(`/?xss=${xssEnabled ? 'on' : 'off'}`);
 });
@@ -58,6 +61,11 @@ app.post('/users', async function (req, res) {
   }
   await addUser(username.trim(), password, sdeEnabled);
   res.redirect(`/?sde=${sdeEnabled ? 'on' : 'off'}`);
+});
+
+app.post('/users/clear', async function (req, res) {
+  await deleteAllUsers();
+  res.redirect('/');
 });
 
 app.listen(port, '0.0.0.0', () => {
